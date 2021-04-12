@@ -9,8 +9,10 @@ UDEV_RULE4='ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", TAG+="uaccess"'
 
 function install_tools {
 	echo "installing tools"
-	rustup target add thumbv7m-none-eabi
-	cargo install cargo-binutils
+	# rustup override set nightly-thumbv7em-none-eabi
+	rustup override set nightly
+	rustup target add thumbv7em-none-eabi
+	cargo install cargo-binutils probe-run
 	rustup component add llvm-tools-preview
 
 	sudo apt install gdb-multiarch openocd
