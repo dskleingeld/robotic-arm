@@ -9,14 +9,14 @@ UDEV_RULE4='ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", TAG+="uaccess"'
 
 function install_tools {
 	echo "installing tools"
-	# rustup override set nightly-thumbv7em-none-eabi
 	rustup override set nightly
 	rustup target add thumbv7em-none-eabihf
 
-	cargo install cargo-binutils probe-run
+	cargo install probe-run # flashing and printing
+	cargo install flip-link # linker with stack overflow protection
 	rustup component add llvm-tools-preview
 
-	sudo apt install gdb-multiarch openocd
+	# sudo apt install gdb-multiarch openocd # only for debugging
 }
 
 # add udev rules if they do not yet exist
