@@ -11,7 +11,8 @@ function install_tools {
 	echo "installing tools"
 	# rustup override set nightly-thumbv7em-none-eabi
 	rustup override set nightly
-	rustup target add thumbv7em-none-eabi
+	rustup target add thumbv7em-none-eabihf
+
 	cargo install cargo-binutils probe-run
 	rustup component add llvm-tools-preview
 
