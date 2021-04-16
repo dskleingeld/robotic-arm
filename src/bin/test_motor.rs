@@ -5,9 +5,10 @@
 #![feature(type_alias_impl_trait)]
 #![allow(incomplete_features)]
 
+#[path = "../defmt_setup.rs"]
 mod defmt_setup;
-mod hinge;
-mod config;
+#[path = "../hinge/motor.rs"]
+mod motor;
 
 use defmt::panic;
 use embassy::executor::Spawner;
@@ -17,22 +18,33 @@ use embassy_nrf::Peripherals;
 use embedded_hal::digital::v2::OutputPin;
 
 use defmt_setup::*;
-use hinge::Hinge;
+use motor::{Motor, MotorConfig};
+
+const TESTCFG: MotorConfig = MotorConfig {
+    encoder_fdw: 1,
+    encoder_back: 2,
+    power_fwd: 3,
+    power_back: 4,
+};
+
+async fn watch(motor: Motor) {
+    loop {
+    }
+}
 
 #[embassy::main]
 async fn main(spawner: Spawner) {
     let p = Peripherals::take().unwrap();
     let mut led = Output::new(p.P0_18, Level::Low, OutputDrive::Standard);
-    info!("reading...");
-    let hinge_lower = Hinge::from(config::LOWERMOTOR);
-    let hinge_upper = Hinge::from(config::LOWERMOTOR);
-    let hinge_grapper = Hinge::from(config::LOWERMOTOR);
+    let motor = Motor::from(TESTCFG);
+    info!("Testing motor");
+
+    watch(motor).await;
 
     loop {
         led.set_high().unwrap();
-        Timer::after(Duration::from_millis(3000)).await;
+        Timer::after(Duration::from_millis(1000)).await;
         led.set_low().unwrap();
-        Timer::after(Duration::from_millis(3000)).await;
+        Timer::after(Duration::from_millis(1000)).await;
     }
 }
-
