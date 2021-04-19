@@ -30,7 +30,7 @@ const TESTCFG: MotorConfig = MotorConfig {
 
 async fn test(hinge: Hinge) {
     Timer::after(Duration::from_millis(1000)).await;
-    hinge.set_target(5);
+    // hinge.set_target(5);
 }
 
 

@@ -24,9 +24,9 @@ async fn main(spawner: Spawner) {
     let p = Peripherals::take().unwrap();
     let mut led = Output::new(p.P0_18, Level::Low, OutputDrive::Standard);
     info!("reading...");
-    let hinge_lower = Hinge::from(config::LOWERMOTOR);
+    /* let hinge_lower = Hinge::from(config::LOWERMOTOR);
     let hinge_upper = Hinge::from(config::LOWERMOTOR);
-    let hinge_grapper = Hinge::from(config::LOWERMOTOR);
+    let hinge_grapper = Hinge::from(config::LOWERMOTOR); */
 
     loop {
         led.set_high().unwrap();
