@@ -3,12 +3,11 @@ use embassy::time::{Duration, Timer};
 use embassy::util::Signal;
 use defmt::info;
 
-type Pin = u8;
 type PwmPin = u8;
 
 pub struct MotorConfig {
-    pub encoder_fdw: Pin,
-    pub encoder_back: Pin,
+    pub encoder_fdw: u8,
+    pub encoder_back: u8,
     pub power_fwd: PwmPin,
     pub power_back: PwmPin,
 }
@@ -61,6 +60,10 @@ pub struct Motor {
     controls: &'static Controls,
 }
 
+async fn test(m: &mut Motor) {
+    m.controls.changed.wait().await
+}
+
 use futures::future::{select, Either};
 impl Motor {
     pub fn from(cfg: MotorConfig, controls: &'static Controls) -> Self {
@@ -71,14 +74,19 @@ impl Motor {
         }
     }
     pub async fn maintain(&mut self) {
+        use core::pin::Pin;
+        use futures::pin_mut;
+        use futures::future::FutureExt;
+
         loop {
-            let changed = self.controls.changed.wait();
-            let timeout = Timer::after(Duration::from_millis(1000));
+            let mut changed = self.controls.changed.wait().fuse();
+            let mut timeout = Timer::after(Duration::from_millis(1000)).fuse();
+            // pin_mut!(changed); //TODO needed?
             // TODO event
-            match select(changed, timeout).await {
-                Either::Left(_) => info!("changed"),
-                Either::Right(_) => info!("timeout"),
-            };
+            futures::select_biased! {
+                () = changed => info!("changed"),
+                () = timeout => info!("timeout"),
+            }
         }
     }
 }
