@@ -5,20 +5,18 @@
 #![feature(type_alias_impl_trait)]
 #![allow(incomplete_features)]
 
-#[path = "../defmt_setup.rs"]
 mod defmt_setup;
-#[path = "../hinge/motor.rs"]
-mod motor;
+mod hinge;
 
 use defmt::panic;
+use nrf52832_hal as hal;
 use embassy::executor::Spawner;
 use embassy::time::{Duration, Timer};
 use embassy_nrf::gpio::{Level, Output, OutputDrive, Pin};
-use embassy_nrf::Peripherals;
 use embedded_hal::digital::v2::OutputPin;
 
 use defmt_setup::*;
-use motor::{Motor, MotorConfig, Controls};
+use hinge::motor::{Motor, MotorConfig, Controls, pwm_init};
 
 static CTRL: Controls = Controls::default();
 
@@ -50,9 +48,16 @@ async fn blink<'d>(mut led: Output<'d, impl Pin>) {
 
 #[embassy::main]
 async fn main(_spawner: Spawner) {
-    let p = Peripherals::take().unwrap();
-    let led = Output::new(p.P0_18, Level::Low, OutputDrive::Standard);
-    let mut motor = Motor::from(TESTCFG, &CTRL);
+    let p = embassy_nrf::Peripherals::take().unwrap();
+    let led = Output::new(p.P0_17, Level::Low, OutputDrive::Standard);
+
+    let p = hal::pac::Peripherals::take().unwrap();
+    let p0 = hal::gpio::p0::Parts::new(p.P0);
+    let pwm_pins = (p0.p0_18.degrade(), p0.p0_27.degrade(), p0.p0_26.degrade());
+    let pwm = pwm_init(p.PWM0, pwm_pins); 
+    let (pwm0, _pwm1, _pwm2, _) = pwm.split_channels();
+
+    let mut motor = Motor::from(TESTCFG, &CTRL, pwm0);
     info!("Testing motor");
 
     let test = test(&CTRL);

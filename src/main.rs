@@ -17,7 +17,7 @@ use embassy_nrf::Peripherals;
 use embedded_hal::digital::v2::OutputPin;
 
 use defmt_setup::*;
-use hinge::Hinge;
+// use hinge::Hinge;
 
 #[embassy::main]
 async fn main(spawner: Spawner) {

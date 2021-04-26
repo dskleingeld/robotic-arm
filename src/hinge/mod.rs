@@ -1,7 +1,8 @@
-mod motor;
+pub mod motor;
 use motor::Motor;
-use embassy::time::{Duration, Timer};
 use core::sync::atomic::{AtomicU8, Ordering};
+use nrf52832_hal::pwm::PwmChannel;
+use nrf52832_hal::pwm::Instance as PwmInstance;
 
 pub use motor::MotorConfig;
 
@@ -33,16 +34,16 @@ impl Controls {
     }
 }
 
-pub struct Hinge {
+pub struct Hinge<'a, T: PwmInstance> {
     pos: Option<f32>, // degrees
-    motor: Motor,
+    motor: Motor<'a, T>,
     controls: &'static Controls,
 }
 
-impl Hinge {
-    pub fn from(cfg: MotorConfig, controls: &'static Controls) -> Self {
+impl<'a,T: PwmInstance> Hinge<'a, T> {
+    pub fn from(cfg: MotorConfig, controls: &'static Controls, pwm: PwmChannel<'a, T>) -> Self {
         Self {
-            motor: Motor::from(cfg, &controls.motor),
+            motor: Motor::from(cfg, &controls.motor, pwm),
             pos: None,
             controls,
         }

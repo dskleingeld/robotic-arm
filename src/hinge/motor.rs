@@ -1,7 +1,12 @@
 use core::sync::atomic::{AtomicI8, AtomicU8, Ordering};
+use defmt::info;
 use embassy::time::{Duration, Timer};
 use embassy::util::Signal;
-use defmt::info;
+use nrf52832_hal::pwm::Instance as PwmInstance;
+use nrf52832_hal::pwm::PwmChannel;
+
+mod pwm;
+pub use pwm::init as pwm_init;
 
 type PwmPin = u8;
 
@@ -41,11 +46,11 @@ impl Controls {
         self.target_speed.store(speed, Ordering::Release);
         self.changed.signal(());
     }
-    /// change the direction 
+    /// change the direction
     pub fn set_dir(&self, dir: i8) {
-        self.target_speed.fetch_update(Ordering::Relaxed, 
-            Ordering::Relaxed, 
-            |s| Some(s*dir)).unwrap();
+        self.target_speed
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |s| Some(s * dir))
+            .unwrap();
         self.changed.signal(());
     }
     pub fn set_max_torgue(&self, max: u8) {
@@ -54,37 +59,41 @@ impl Controls {
     }
 }
 
-pub struct Motor {
-    pins: MotorConfig,
+pub struct Motor<'a, T: PwmInstance> {
+    pwm: PwmChannel<'a, T>,
     relative_pos: u16, // degrees
     controls: &'static Controls,
 }
 
-async fn test(m: &mut Motor) {
-    m.controls.changed.wait().await
-}
-
-use futures::future::{select, Either};
-impl Motor {
-    pub fn from(cfg: MotorConfig, controls: &'static Controls) -> Self {
+impl<'a, T: PwmInstance> Motor<'a, T> {
+    pub fn from(
+        cfg: MotorConfig,
+        controls: &'static Controls,
+        pwm: PwmChannel<'a, T>,
+    ) -> Self {
         Self {
-            pins: cfg,
+            pwm,
             relative_pos: 0,
             controls,
         }
     }
     pub async fn maintain(&mut self) {
-        use core::pin::Pin;
-        use futures::pin_mut;
+        /* use core::pin::Pin;
+        use futures::pin_mut; */
         use futures::future::FutureExt;
 
+        let mut i = 1u16;
         loop {
             let mut changed = self.controls.changed.wait().fuse();
-            let mut timeout = Timer::after(Duration::from_millis(1000)).fuse();
-            // pin_mut!(changed); //TODO needed?
+            let mut timeout = Timer::after(Duration::from_millis(100)).fuse();
             // TODO event
             futures::select_biased! {
-                () = changed => info!("changed"),
+                () = changed => {
+                    self.pwm.set_duty(u16::MAX/i);
+                    i = (i + 4) % 32;
+                    i = i.max(1);
+                    info!("changed");
+                },
                 () = timeout => info!("timeout"),
             }
         }
