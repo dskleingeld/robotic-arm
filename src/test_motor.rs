@@ -17,25 +17,17 @@ use embassy_nrf::gpiote;
 use embedded_hal::digital::v2::OutputPin;
 
 use defmt_setup::*;
-use hinge::motor::{Motor, MotorConfig, Controls, pwm_init, Encoder};
+use hinge::motor::{Motor, Controls, pwm_init, Encoder};
 
 static CTRL: Controls = Controls::default();
 
-const TESTCFG: MotorConfig = MotorConfig {
-    encoder_fdw: 1,
-    encoder_back: 2,
-    power_fwd: 3,
-    power_back: 4,
-};
-
-
 async fn test(controls: &'static Controls) {
-    loop {
+    // loop {
         controls.set_speed(-5);
         Timer::after(Duration::from_millis(1000)).await;
         controls.set_speed(5);
         Timer::after(Duration::from_millis(1000)).await;
-    }
+    // }
 }
 
 async fn blink<'d>(mut led: Output<'d, impl Pin>) {
@@ -48,7 +40,7 @@ async fn blink<'d>(mut led: Output<'d, impl Pin>) {
 }
 
 #[embassy::main]
-async fn main(_spawner: Spawner) {
+async fn main(_spawner: Spawner) -> ! {
     let ep = embassy_nrf::Peripherals::take().unwrap();
     let led = Output::new(ep.P0_17, Level::Low, OutputDrive::Standard);
 
@@ -63,7 +55,7 @@ async fn main(_spawner: Spawner) {
     let gp = gpiote::initialize(ep.GPIOTE, interrupt::take!(GPIOTE));
     let encoder = Encoder::from(ep.P0_11, gp, ep.GPIOTE_CH0);
 
-    let mut motor = Motor::from(TESTCFG, &CTRL, encoder, pwm0);
+    let mut motor = Motor::from(&CTRL, encoder, pwm0);
     info!("Testing motor");
 
     let test = test(&CTRL);

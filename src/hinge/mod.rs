@@ -5,8 +5,6 @@ use nrf52832_hal::pwm::PwmChannel;
 use nrf52832_hal::pwm::Instance as PwmInstance;
 use embassy::util::Unborrow;
 
-pub use motor::MotorConfig;
-
 pub struct Controls {
     motor: motor::Controls,
     target: AtomicU8,
