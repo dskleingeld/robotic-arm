@@ -1,12 +1,17 @@
+#![allow(dead_code)]
+
 use core::sync::atomic::{AtomicI8, AtomicU8, Ordering};
 use defmt::info;
 use embassy::time::{Duration, Timer};
-use embassy::util::Signal;
+use embassy::util::{Signal, Unborrow};
+use embassy_nrf::gpio;
 use nrf52832_hal::pwm::Instance as PwmInstance;
 use nrf52832_hal::pwm::PwmChannel;
 
 mod pwm;
+mod encoder;
 pub use pwm::init as pwm_init;
+pub use encoder::Encoder;
 
 type PwmPin = u8;
 
@@ -59,43 +64,55 @@ impl Controls {
     }
 }
 
-pub struct Motor<'a, T: PwmInstance> {
+use embassy_nrf::gpiote;
+pub struct Motor<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> {
     pwm: PwmChannel<'a, T>,
     relative_pos: u16, // degrees
     controls: &'static Controls,
+    encoder: Encoder<'a, C, P>,
 }
 
-impl<'a, T: PwmInstance> Motor<'a, T> {
+impl<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> Motor<'a, T, C, P> {
     pub fn from(
         cfg: MotorConfig,
         controls: &'static Controls,
+        encoder: Encoder<'a, C, P>,
         pwm: PwmChannel<'a, T>,
     ) -> Self {
         Self {
             pwm,
             relative_pos: 0,
             controls,
+            encoder,
         }
     }
-    pub async fn maintain(&mut self) {
-        /* use core::pin::Pin;
-        use futures::pin_mut; */
+
+    pub async fn maintain_forever(&mut self) {
+        loop {
+            self.maintain().await;
+        }
+    }
+
+    pub async fn maintain(&mut self) -> encoder::Change {
+        // use core::pin::Pin;
+        use futures::pin_mut;
         use futures::future::FutureExt;
 
-        let mut i = 1u16;
-        loop {
-            let mut changed = self.controls.changed.wait().fuse();
-            let mut timeout = Timer::after(Duration::from_millis(100)).fuse();
-            // TODO event
-            futures::select_biased! {
-                () = changed => {
-                    self.pwm.set_duty(u16::MAX/i);
-                    i = (i + 4) % 32;
-                    i = i.max(1);
-                    info!("changed");
-                },
-                () = timeout => info!("timeout"),
-            }
+        let mut changed = self.controls.changed.wait().fuse();
+        let encoder = self.encoder.wait().fuse();
+        let mut timeout = Timer::after(Duration::from_millis(100)).fuse();
+
+        pin_mut!(encoder);
+        futures::select_biased! {
+            c = encoder => {
+                info!("encoder moved: {}", c);
+                c
+            },
+            () = changed => {
+                // self.pwm.set_duty(u16::MAX/i);
+                0
+            },
+            () = timeout => 0,
         }
     }
 }

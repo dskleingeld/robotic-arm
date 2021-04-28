@@ -13,10 +13,11 @@ use nrf52832_hal as hal;
 use embassy::executor::Spawner;
 use embassy::time::{Duration, Timer};
 use embassy_nrf::gpio::{Level, Output, OutputDrive, Pin};
+use embassy_nrf::gpiote;
 use embedded_hal::digital::v2::OutputPin;
 
 use defmt_setup::*;
-use hinge::motor::{Motor, MotorConfig, Controls, pwm_init};
+use hinge::motor::{Motor, MotorConfig, Controls, pwm_init, Encoder};
 
 static CTRL: Controls = Controls::default();
 
@@ -48,21 +49,26 @@ async fn blink<'d>(mut led: Output<'d, impl Pin>) {
 
 #[embassy::main]
 async fn main(_spawner: Spawner) {
-    let p = embassy_nrf::Peripherals::take().unwrap();
-    let led = Output::new(p.P0_17, Level::Low, OutputDrive::Standard);
+    let ep = embassy_nrf::Peripherals::take().unwrap();
+    let led = Output::new(ep.P0_17, Level::Low, OutputDrive::Standard);
 
-    let p = hal::pac::Peripherals::take().unwrap();
-    let p0 = hal::gpio::p0::Parts::new(p.P0);
+    let hp = hal::pac::Peripherals::take().unwrap();
+    let p0 = hal::gpio::p0::Parts::new(hp.P0);
     let pwm_pins = (p0.p0_18.degrade(), p0.p0_27.degrade(), p0.p0_26.degrade());
-    let pwm = pwm_init(p.PWM0, pwm_pins); 
+
+    let pwm = pwm_init(hp.PWM0, pwm_pins); 
     let (pwm0, _pwm1, _pwm2, _) = pwm.split_channels();
 
-    let mut motor = Motor::from(TESTCFG, &CTRL, pwm0);
+    use embassy_nrf::interrupt;
+    let gp = gpiote::initialize(ep.GPIOTE, interrupt::take!(GPIOTE));
+    let encoder = Encoder::from(ep.P0_11, gp, ep.GPIOTE_CH0);
+
+    let mut motor = Motor::from(TESTCFG, &CTRL, encoder, pwm0);
     info!("Testing motor");
 
     let test = test(&CTRL);
     let blink = blink(led);
-    let motor = motor.maintain();
+    let motor = motor.maintain_forever();
 
     futures::join!(test, blink, motor);
 }
