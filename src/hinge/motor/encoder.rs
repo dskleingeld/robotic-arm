@@ -27,7 +27,8 @@ impl State {
 }
 
 pub struct Encoder<'d, C: gpiote::Channel, P: gpio::Pin> {
-    ch: InputChannel<'d, C, P>,
+    ch_0: InputChannel<'d, C, P>,
+    ch_1: InputChannel<'d, C, P>,
     state: State,
 }
 
@@ -37,12 +38,15 @@ impl<'d, C, P> Encoder<'d, C,P>
         P: gpio::Pin+Unborrow + Unborrow<Target = P>
     {
 
-    pub fn from(pin: P, gp: gpiote::Initialized, channel: C) -> Self {
-        let pin = Input::new(pin, Pull::Down);
-        let ch = InputChannel::new(gp, channel, pin, InputChannelPolarity::Toggle);
+    pub fn from(pin_0: P, pin_1: P, gp: gpiote::Initialized, channel_0: C, channel_1: C) -> Self {
+        let pin_0 = Input::new(pin_0, Pull::Down);
+        let pin_1 = Input::new(pin_1, Pull::Down);
+        let ch_0 = InputChannel::new(gp, channel_0, pin_0, InputChannelPolarity::Toggle);
+        let ch_1 = InputChannel::new(gp, channel_1, pin_1, InputChannelPolarity::Toggle);
 
         Self {
-            ch,
+            ch_0,
+            ch_1,
             state: State::default(),
         }
     }
@@ -50,7 +54,19 @@ impl<'d, C, P> Encoder<'d, C,P>
 
 impl<'d, C: gpiote::Channel, P: gpio::Pin> Encoder<'d, C,P> {
     pub async fn wait(&mut self) -> (Distance, Speed) {
-        self.ch.wait().await;
+        use futures::pin_mut;
+        use futures::future::FutureExt;
+
+        let ch_0 = self.ch_0.wait().fuse();
+        let ch_1 = self.ch_1.wait().fuse();
+
+        pin_mut!(ch_0);
+        pin_mut!(ch_1);
+        futures::select_biased! {
+            () = ch_0 => (),
+            () = ch_1 => (),
+        };
+
         let distance = 1;
         let speed = self.state.update(distance);
         (distance, speed)

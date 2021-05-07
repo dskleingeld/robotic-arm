@@ -40,8 +40,8 @@ impl Controls {
         self.target_speed.load(Ordering::Relaxed)
     }
     pub fn set_speed(&self, speed: i8) {
-        self.target_speed.store(speed, Ordering::Release);
-        self.changed.signal(()); //TODO FIXME BUG
+        self.target_speed.store(speed, Ordering::Relaxed);
+        self.changed.signal(());
     }
     /// change the direction
     pub fn set_dir(&self, dir: i8) {
@@ -74,7 +74,7 @@ pub struct Motor<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> 
     state: State,
     last_update: Instant,
     pid: PidController,
-    pwm: PwmChannel<'a, T>,
+    pwm: PwmChannel<'a, T>, //TODO add dir control
     controls: &'static Controls,
     encoder: Encoder<'a, C, P>,
 }
@@ -112,7 +112,7 @@ impl<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> Motor<'a, T,
 
         let mut changed = self.controls.changed.wait().fuse();
         let encoder = self.encoder.wait().fuse();
-        let mut timeout = Timer::after(Duration::from_millis(1)).fuse();
+        let mut timeout = Timer::after(Duration::from_millis(100)).fuse();
 
         pin_mut!(encoder);
         futures::select_biased! {
@@ -129,10 +129,11 @@ impl<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> Motor<'a, T,
         self.last_update = Instant::now();
 
         let power = self.pid.update_elapsed(self.state.speed as f64, duration);
+        // info!("setting motor power to: {}", power);
+        // note 50% duty cycle bad says internet....
         let power = power as u16; // TODO limit motor power
 
-        info!("setting motor power to: {}", power);
-        self.pwm.set_duty(power);
+        self.pwm.set_duty_on(self.pwm.max_duty()/100*30);
 
 
         self.state.clone()

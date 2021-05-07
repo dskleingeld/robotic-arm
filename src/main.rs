@@ -13,7 +13,8 @@ use defmt_setup::*;
 
 use defmt::panic;
 
+
 #[embassy::main]
 async fn main(_spawner: Spawner) {
-    core::panic!("help");
+
 }

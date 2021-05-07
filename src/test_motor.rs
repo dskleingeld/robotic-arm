@@ -9,24 +9,27 @@ mod defmt_setup;
 mod hinge;
 
 use defmt::panic;
-use nrf52832_hal as hal;
 use embassy::executor::Spawner;
 use embassy::time::{Duration, Timer};
 use embassy_nrf::gpio::{Level, Output, OutputDrive, Pin};
-use embassy_nrf::gpiote;
+use embassy_nrf::gpiote::{self, Channel};
+use embassy_nrf::interrupt;
 use embedded_hal::digital::v2::OutputPin;
+use nrf52832_hal as hal;
 
 use defmt_setup::*;
-use hinge::motor::{Motor, Controls, pwm_init, Encoder};
+use hinge::motor::{pwm_init, Controls, Encoder, Motor};
 
-static CTRL: Controls = Controls::default();
+static CTRL_0: Controls = Controls::default();
+static CTRL_1: Controls = Controls::default();
+static CTRL_2: Controls = Controls::default();
 
 async fn test(controls: &'static Controls) {
     // loop {
-        controls.set_speed(-5);
-        Timer::after(Duration::from_millis(1000)).await;
-        controls.set_speed(5);
-        Timer::after(Duration::from_millis(1000)).await;
+    controls.set_speed(-5);
+    Timer::after(Duration::from_millis(1000)).await;
+    controls.set_speed(5);
+    Timer::after(Duration::from_millis(1000)).await;
     // }
 }
 
@@ -46,19 +49,45 @@ async fn main(_spawner: Spawner) -> ! {
 
     let hp = hal::pac::Peripherals::take().unwrap();
     let p0 = hal::gpio::p0::Parts::new(hp.P0);
-    let pwm_pins = (p0.p0_18.degrade(), p0.p0_27.degrade(), p0.p0_26.degrade());
+    let pwm_pins = (p0.p0_04.degrade(), p0.p0_27.degrade(), p0.p0_16.degrade());
 
-    let pwm = pwm_init(hp.PWM0, pwm_pins); 
-    let (pwm0, _pwm1, _pwm2, _) = pwm.split_channels();
-
-    use embassy_nrf::interrupt;
+    let pwm = pwm_init(hp.PWM0, pwm_pins);
+    let (pwm0, pwm1, pwm2, _) = pwm.split_channels();
     let gp = gpiote::initialize(ep.GPIOTE, interrupt::take!(GPIOTE));
-    let encoder = Encoder::from(ep.P0_11, gp, ep.GPIOTE_CH0);
 
-    let mut motor = Motor::from(&CTRL, encoder, pwm0);
+    let encoder = Encoder::from(
+        ep.P0_31.degrade(),
+        ep.P0_30.degrade(),
+        gp,
+        ep.GPIOTE_CH0.degrade(),
+        ep.GPIOTE_CH1.degrade(),
+    );
+    let mut _motor = Motor::from(&CTRL_0, encoder, pwm0);
+    // TODO hinge
+
+    let encoder = Encoder::from(
+        ep.P0_11.degrade(),
+        ep.P0_12.degrade(),
+        gp,
+        ep.GPIOTE_CH2.degrade(),
+        ep.GPIOTE_CH3.degrade(),
+    );
+    let mut _motor = Motor::from(&CTRL_1, encoder, pwm1);
+    // TODO hinge
+
+    let encoder = Encoder::from(
+        ep.P0_22.degrade(),
+        ep.P0_23.degrade(),
+        gp,
+        ep.GPIOTE_CH4.degrade(),
+        ep.GPIOTE_CH5.degrade(),
+    );
+    let mut motor = Motor::from(&CTRL_2, encoder, pwm2);
+    // TODO hinge
+
     info!("Testing motor");
 
-    let test = test(&CTRL);
+    let test = test(&CTRL_0);
     let blink = blink(led);
     let motor = motor.maintain_forever();
 

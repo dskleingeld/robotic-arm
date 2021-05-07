@@ -13,7 +13,7 @@ pub fn init<'a, M, T: Instance>(pwm: T, pins: (Pin<M>, Pin<M>, Pin<M>)) -> Pwm<T
     pwm.set_output_pin(Channel::C0, &pin0)
         .set_output_pin(Channel::C1, &pin1)
         .set_output_pin(Channel::C2, &pin2)
-        .set_period(500u32.hz())
+        .set_period(100_000u32.hz()) // experimentally found, lower freq lower motor power
         .enable();
 
     // let (pwm1, pwm2, pwm3, pwm4) = pwm.split_channels();
