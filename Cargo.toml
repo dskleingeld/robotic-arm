@@ -40,6 +40,7 @@ futures = { version = "0.3", default-features = false, features = ["async-await"
 
 # pid-lite = { version = "1.1.0", default-features = false } # TODO re-enable when PR is merged
 pid-lite = { git = "https://github.com/dskleingeld/pid-lite.git", version = "1.1.0", default-features = false }
+rotary-encoder-hal = "0.3.0"
 
 [profile.release]
 debug = true # default is `false`; using `true` is also OK

@@ -8,6 +8,7 @@ use embassy_nrf::gpio;
 use nrf52832_hal::pwm::Instance as PwmInstance;
 use nrf52832_hal::pwm::PwmChannel;
 use pid_lite::Controller as PidController;
+use embedded_hal::digital::v2::InputPin;
 
 mod pwm;
 mod encoder;
@@ -69,24 +70,23 @@ impl State {
     }
 }
 
-use embassy_nrf::gpiote;
-pub struct Motor<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> {
+pub struct Motor<'a, T: PwmInstance> {
     state: State,
     last_update: Instant,
     pid: PidController,
     pwm: PwmChannel<'a, T>, //TODO add dir control
     controls: &'static Controls,
-    encoder: Encoder<'a, C, P>,
+    encoder: Encoder,
 }
 
-impl<'a, T: PwmInstance, C: gpiote::Channel, P: gpio::Pin+Unborrow> Motor<'a, T, C, P> {
+impl<'a, T: PwmInstance> Motor<'a, T> {
     const P_GAIN: f64 = 10.0;
     const I_GAIN: f64 = 10.0;
     const D_GAIN: f64 = 10.0;
 
     pub fn from(
         controls: &'static Controls,
-        encoder: Encoder<'a, C, P>,
+        encoder: Encoder,
         pwm: PwmChannel<'a, T>,
     ) -> Self {
 

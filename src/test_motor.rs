@@ -55,32 +55,23 @@ async fn main(_spawner: Spawner) -> ! {
     let (pwm0, pwm1, pwm2, _) = pwm.split_channels();
     let gp = gpiote::initialize(ep.GPIOTE, interrupt::take!(GPIOTE));
 
-    let encoder = Encoder::from(
-        ep.P0_31.degrade(),
-        ep.P0_30.degrade(),
-        gp,
-        ep.GPIOTE_CH0.degrade(),
-        ep.GPIOTE_CH1.degrade(),
+    /* let encoder = Encoder::from(
+        p0.p0_31.degrade(),
+        p0.p0_30.degrade(),
     );
     let mut _motor = Motor::from(&CTRL_0, encoder, pwm0);
     // TODO hinge
 
     let encoder = Encoder::from(
-        ep.P0_11.degrade(),
-        ep.P0_12.degrade(),
-        gp,
-        ep.GPIOTE_CH2.degrade(),
-        ep.GPIOTE_CH3.degrade(),
+        p0.p0_11.degrade(),
+        p0.p0_12.degrade(),
     );
-    let mut _motor = Motor::from(&CTRL_1, encoder, pwm1);
+    let mut _motor = Motor::from(&CTRL_1, encoder, pwm1); */
     // TODO hinge
 
     let encoder = Encoder::from(
-        ep.P0_22.degrade(),
-        ep.P0_23.degrade(),
-        gp,
-        ep.GPIOTE_CH4.degrade(),
-        ep.GPIOTE_CH5.degrade(),
+        p0.p0_22.degrade(),
+        p0.p0_23.degrade(),
     );
     let mut motor = Motor::from(&CTRL_2, encoder, pwm2);
     // TODO hinge
