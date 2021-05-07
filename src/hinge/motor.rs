@@ -1,19 +1,16 @@
 #![allow(dead_code)]
 
-use defmt::info;
 use core::sync::atomic::{AtomicI8, AtomicU8, Ordering};
-use embassy::time::{Instant, Duration, Timer};
-use embassy::util::{Signal, Unborrow};
-use embassy_nrf::gpio;
+use embassy::time::{Duration, Instant, Timer};
+use embassy::util::Signal;
 use nrf52832_hal::pwm::Instance as PwmInstance;
 use nrf52832_hal::pwm::PwmChannel;
 use pid_lite::Controller as PidController;
-use embedded_hal::digital::v2::InputPin;
 
-mod pwm;
 mod encoder;
-pub use pwm::init as pwm_init;
+mod pwm;
 pub use encoder::Encoder;
+pub use pwm::init as pwm_init;
 
 // Safe to share around as its all atomic, should be declared
 // at static. Does not need to be mutable as atomics can be changed
@@ -67,6 +64,7 @@ impl State {
     pub fn update(&mut self, dist: encoder::Distance, spd: encoder::Speed) {
         self.relative_pos += dist;
         self.speed = spd;
+        // defmt::info!("rel_pos: {}", self.relative_pos);
     }
 }
 
@@ -84,12 +82,7 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
     const I_GAIN: f64 = 10.0;
     const D_GAIN: f64 = 10.0;
 
-    pub fn from(
-        controls: &'static Controls,
-        encoder: Encoder,
-        pwm: PwmChannel<'a, T>,
-    ) -> Self {
-
+    pub fn from(controls: &'static Controls, encoder: Encoder, pwm: PwmChannel<'a, T>) -> Self {
         Self {
             pwm,
             last_update: Instant::now(),
@@ -107,8 +100,8 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
     }
 
     pub async fn maintain(&mut self) -> State {
-        use futures::pin_mut;
         use futures::future::FutureExt;
+        use futures::pin_mut;
 
         let mut changed = self.controls.changed.wait().fuse();
         let encoder = self.encoder.wait().fuse();
@@ -121,7 +114,7 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
                 let speed = self.controls.get_speed() as f64;
                 self.pid.set_target(speed);
             },
-            () = timeout => self.state.update(0, 0),
+            () = timeout => ()//self.state.update(0, 0),
         };
 
         let duration = self.last_update.elapsed().as_millis();
@@ -133,8 +126,7 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
         // note 50% duty cycle bad says internet....
         let power = power as u16; // TODO limit motor power
 
-        self.pwm.set_duty_on(self.pwm.max_duty()/100*30);
-
+        self.pwm.set_duty_on(self.pwm.max_duty() / 100 * 30);
 
         self.state.clone()
     }

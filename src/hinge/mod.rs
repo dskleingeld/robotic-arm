@@ -1,10 +1,7 @@
 pub mod motor;
 use motor::Motor;
 use core::sync::atomic::{AtomicU8, Ordering};
-use nrf52832_hal::pwm::PwmChannel;
 use nrf52832_hal::pwm::Instance as PwmInstance;
-use embassy::util::Unborrow;
-use embedded_hal::digital::v2::InputPin;
 
 pub struct Controls {
     motor: motor::Controls,

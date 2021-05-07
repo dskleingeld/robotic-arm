@@ -12,7 +12,7 @@ use defmt::panic;
 use embassy::executor::Spawner;
 use embassy::time::{Duration, Timer};
 use embassy_nrf::gpio::{Level, Output, OutputDrive, Pin};
-use embassy_nrf::gpiote::{self, Channel};
+use embassy_nrf::gpiote;
 use embassy_nrf::interrupt;
 use embedded_hal::digital::v2::OutputPin;
 use nrf52832_hal as hal;
@@ -53,34 +53,33 @@ async fn main(_spawner: Spawner) -> ! {
 
     let pwm = pwm_init(hp.PWM0, pwm_pins);
     let (pwm0, pwm1, pwm2, _) = pwm.split_channels();
-    let gp = gpiote::initialize(ep.GPIOTE, interrupt::take!(GPIOTE));
 
-    /* let encoder = Encoder::from(
+    let encoder = Encoder::from(
         p0.p0_31.degrade(),
         p0.p0_30.degrade(),
     );
-    let mut _motor = Motor::from(&CTRL_0, encoder, pwm0);
+    let mut motor_a = Motor::from(&CTRL_0, encoder, pwm0);
     // TODO hinge
 
     let encoder = Encoder::from(
         p0.p0_11.degrade(),
         p0.p0_12.degrade(),
     );
-    let mut _motor = Motor::from(&CTRL_1, encoder, pwm1); */
+    let mut _motor_b = Motor::from(&CTRL_1, encoder, pwm1);
     // TODO hinge
 
     let encoder = Encoder::from(
         p0.p0_22.degrade(),
         p0.p0_23.degrade(),
     );
-    let mut motor = Motor::from(&CTRL_2, encoder, pwm2);
+    let mut _motor_c = Motor::from(&CTRL_2, encoder, pwm2);
     // TODO hinge
 
     info!("Testing motor");
 
     let test = test(&CTRL_0);
     let blink = blink(led);
-    let motor = motor.maintain_forever();
+    let motor = motor_a.maintain_forever();
 
     futures::join!(test, blink, motor);
 }
