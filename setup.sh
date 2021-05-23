@@ -12,11 +12,10 @@ function install_tools {
 	rustup override set nightly
 	rustup target add thumbv7em-none-eabihf
 
+	sudo apt install libusb-1.0-0-dev
 	cargo install probe-run # flashing and printing
 	cargo install flip-link # linker with stack overflow protection
 	rustup component add llvm-tools-preview
-
-	# sudo apt install gdb-multiarch openocd # only for debugging
 }
 
 # add udev rules if they do not yet exist
