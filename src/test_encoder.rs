@@ -40,34 +40,23 @@ impl Iterator for BitIter {
 
 #[interrupt]
 unsafe fn GPIOTE() {
-    defmt::info!("hi");
     pub const CHANNEL_COUNT: usize = 8;
     let g = &*pac::GPIOTE::ptr();
 
     for i in 0..CHANNEL_COUNT {
-        if g.events_in[i].read().bits() != 0 {
-            g.intenclr.write(|w| unsafe { w.bits(1 << i) });
-            defmt::info!("i: {}", i);
-        }
-    }
+        let event = g.events_in[i].read().bits();
+        if event != 0 {
+            defmt::info!("channel: {}", i);
+            g.intenclr.write(|w| unsafe { w.bits(1 << i) }); // mark interrupt as handled
 
-    if g.events_port.read().bits() != 0 {
-        g.events_port.write(|w| w);
-
-        let ports = &[&*pac::P0::ptr()];
-
-        for (port, &p) in ports.iter().enumerate() {
-            let bits = p.latch.read().bits();
-            for pin in BitIter(bits) {
-                defmt::info!("pin: {}", pin);
-                p.pin_cnf[pin as usize].modify(|_, w| w.sense().disabled());
-            }
-            p.latch.write(|w| w.bits(bits));
+            // re-enable interrupts
+            g.events_in[i].reset();
+            g.intenset.write(|w| unsafe { w.bits(1 << i) });
         }
     }
 }
 
-fn setup_encoder_interrupt() {
+fn enable_gpio_interrupts() {
     use embassy::interrupt::{Interrupt, InterruptExt};
     let ports = unsafe { &[&*pac::P0::ptr()] };
 
@@ -90,35 +79,30 @@ fn setup_encoder_interrupt() {
 }
 
 use embassy_nrf::gpio::{Input, Pull};
-fn test<'d>(pin: Input<'d, impl Pin>, pin_numb: u8) {
+fn set_pin_interrupt<'d>(pin: Input<'d, impl Pin>, pin_numb: u8, channel_numb: usize) {
    let g = unsafe { &*pac::GPIOTE::ptr() };
-   let num = 0; // TODO interrupt channel
 
-    g.config[num].write(|w| { 
+    g.config[channel_numb].write(|w| { 
         w.mode().event().polarity().toggle();
         unsafe { w.psel().bits(pin_numb) }
     });
 
-    g.events_in[num].reset();
+    //enable channel
+    g.events_in[channel_numb].reset();
+    g.intenset.write(|w| unsafe { w.bits(1 << channel_numb) });
 }
-
 
 #[embassy::main]
 async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) -> ! {
 
     // let hp = hal::pac::Peripherals::take().unwrap();
     // let p0 = hal::gpio::p0::Parts::new(hp.P0);
-    setup_encoder_interrupt();
+    enable_gpio_interrupts();
     let i30 = Input::new(ep.P0_30, Pull::None);
     let i31 = Input::new(ep.P0_31, Pull::None);
 
-    test(i30, 30);
-
-    let num = 0;
-    let g = unsafe { &*pac::GPIOTE::ptr() };
-    g.events_in[num].reset();
-    g.intenset.write(|w| unsafe { w.bits(1 << num) });
-    // test(i31);
+    set_pin_interrupt(i30, 30, 0);
+    set_pin_interrupt(i31, 31, 1);
 
     // let mut encoder = Encoder::from(
     //     p0.p0_31.degrade(),

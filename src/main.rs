@@ -15,6 +15,6 @@ use defmt::panic;
 
 
 #[embassy::main]
-async fn main(_spawner: Spawner) {
+async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) {
 
 }

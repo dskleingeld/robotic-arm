@@ -32,8 +32,7 @@ use defmt_setup::*;
 
 
 #[embassy::main]
-async fn main(spawner: Spawner) {
-    let p = Peripherals::take().unwrap();
+async fn main(spawner: Spawner, p: embassy_nrf::Peripherals) {
     let led = Output::new(p.P0_18, Level::Low, OutputDrive::Standard);
     info!("Testing hinge");
     /* let mut hinge = Hinge::from(TESTCFG);

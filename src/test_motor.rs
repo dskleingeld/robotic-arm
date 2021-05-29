@@ -43,8 +43,7 @@ async fn blink<'d>(mut led: Output<'d, impl Pin>) {
 }
 
 #[embassy::main]
-async fn main(_spawner: Spawner) -> ! {
-    let ep = embassy_nrf::Peripherals::take().unwrap();
+async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) -> ! {
     let led = Output::new(ep.P0_17, Level::Low, OutputDrive::Standard);
 
     let hp = hal::pac::Peripherals::take().unwrap();

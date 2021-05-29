@@ -30,9 +30,6 @@ impl Encoder {
     pub async fn wait(&mut self) -> (Distance, Speed) {
         use rotary_encoder_hal::Direction::*;
 
-        // defmt::info!("since last pin update: {}", 
-            // self.last_pin_update.elapsed().as_millis());
-
         let distance = loop {
             let dur = self.last_pin_update.elapsed();
             let dt = Self::PERIOD
@@ -57,7 +54,7 @@ impl Encoder {
     fn update(&mut self, distance: Distance) -> Speed {
         let speed = if let Some(t1) = self.last_spd_update {
             let distance = distance as i32;
-            let elapsed = t1.elapsed().as_millis() as i32;
+            let elapsed = t1.elapsed().as_ticks() as i32;
             distance / elapsed
         } else {
             0
