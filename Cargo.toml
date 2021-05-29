@@ -13,6 +13,10 @@ path = "src/test_hinge.rs"
 name = "test_motor"
 path = "src/test_motor.rs"
 
+[[bin]]
+name = "test_encoder"
+path = "src/test_encoder.rs"
+
 [features]
 default = [ "defmt-default" ]
 defmt-default = []
@@ -23,9 +27,12 @@ defmt-warn = []
 defmt-error = []
 
 [dependencies]
-embassy = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt", "defmt-trace"] }
-embassy-traits = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt"] }
-embassy-nrf = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt", "defmt-trace", "52832"] }
+# embassy = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt", "defmt-trace"] }
+# embassy-traits = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt"] }
+# embassy-nrf = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy.git", features = ["defmt", "defmt-trace", "nrf52832"] }
+embassy = { version = "0.1.0", path = "../embassy/embassy", features = ["defmt", "defmt-trace"] }
+embassy-traits = { version = "0.1.0", path = "../embassy/embassy-traits", features = ["defmt"] }
+embassy-nrf = { version = "0.1.0", path = "../embassy/embassy-nrf", features = ["defmt", "defmt-trace", "nrf52832"] }
 
 defmt = "0.2"
 defmt-rtt = "0.2"
@@ -40,7 +47,7 @@ futures = { version = "0.3", default-features = false, features = ["async-await"
 
 # pid-lite = { version = "1.1.0", default-features = false } # TODO re-enable when PR is merged
 pid-lite = { git = "https://github.com/dskleingeld/pid-lite.git", version = "1.1.0", default-features = false }
-rotary-encoder-hal = { version = "0.3.0" }#, features = ["table-decoder"] }
+rotary-encoder-hal = { version = "0.3.0" , features = ["table-decoder"] }
 
 [profile.release]
 debug = true # default is `false`; using `true` is also OK
