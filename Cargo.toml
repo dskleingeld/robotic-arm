@@ -44,6 +44,7 @@ embedded-hal    = { version = "0.2.4", features = ["unproven"]}
 nrf52832-hal = { version = "0.12", path = "../nrf-hal/nrf52832-hal" }
 nrf52832-pac = { version = "0.9", git = "https://github.com/dskleingeld/nrf52832-pac.git" }
 futures = { version = "0.3", default-features = false, features = ["async-await"] }
+lazy_static = { version = "1.4", features = ["spin_no_std"] }
 
 # pid-lite = { version = "1.1.0", default-features = false } # TODO re-enable when PR is merged
 pid-lite = { git = "https://github.com/dskleingeld/pid-lite.git", version = "1.1.0", default-features = false }

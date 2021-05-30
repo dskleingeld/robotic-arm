@@ -9,7 +9,7 @@ use pid_lite::Controller as PidController;
 
 mod encoder;
 mod pwm;
-pub use encoder::Encoder;
+pub use encoder::{Encoder, interrupts};
 pub use pwm::init as pwm_init;
 
 // Safe to share around as its all atomic, should be declared
