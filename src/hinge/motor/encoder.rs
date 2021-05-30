@@ -13,31 +13,40 @@ pub type Speed = i32;
 pub type Distance = i16;
 
 lazy_static! {
-    static ref ENCODER_A: EncoderISR = unsafe { EncoderISR::<0,1>::from(1,2) };
-    // static ref ENCODER_B: EncoderISR = unsafe { EncoderISR::from(3,4,(2,3)) };
-    // static ref ENCODER_C: EncoderISR = unsafe { EncoderISR::from(30,31,(4,5)) };
+    static ref ENCODER_A: EncoderISR = unsafe { EncoderISR::from((11,0), (12,1)) };
+    static ref ENCODER_B: EncoderISR = unsafe { EncoderISR::from((15,2), (16,3)) };
+    static ref ENCODER_C: EncoderISR = unsafe { EncoderISR::from((30,4), (31,5)) };
 }
 
 type EncoderPin = gpio::Input<'static, AnyPin>;
-pub struct EncoderISR<const C1: usize, const C2: usize> {
+pub struct EncoderISR {
+    channels: [u8;2],
+    pins: [u8;2],
     inner: UnsafeCell<Rotary<EncoderPin, EncoderPin>>,
     dist: AtomicI16,
 }
 
+unsafe impl Sync for EncoderISR {}
+impl EncoderISR {
+    pub fn enable(&self) {
+        for i in 0..2 {
+            interrupts::set_pin(self.pins[i], self.channels[i].into());
+        }
+    }
 
-unsafe impl<const C1: usize, const C2: usize> Sync for EncoderISR<C1, C2> {}
+    pub unsafe fn from(pc0: (u8, u8), pc1: (u8,u8)) -> Self {
+        let (pin_numb1, channel_1) = pc0;
+        let pin = AnyPin::steal(pin_numb1);
+        let pin0 = Input::new(pin, Pull::None);
 
-impl<const C1: usize, const C2: usize> EncoderISR<C1, C2> {
-    pub unsafe fn from(p0: u8, p1: u8) -> Self {
-        let pin_0 = AnyPin::steal(p0);
-        let pin_0 = Input::new(pin_0, Pull::None);
-        interrupts::set_pin(p0, C1);
-        let pin_1 = AnyPin::steal(p1);
-        let pin_1 = Input::new(pin_1, Pull::None);
-        interrupts::set_pin(p1, C2);
+        let (pin_numb2, channel_2) = pc1;
+        let pin = AnyPin::steal(pin_numb2);
+        let pin1 = Input::new(pin, Pull::None);
         
         Self {
-            inner: UnsafeCell::new(Rotary::new(pin_0, pin_1)),
+            channels: [channel_1, channel_2],
+            pins: [pin_numb1, pin_numb2],
+            inner: UnsafeCell::new(Rotary::new(pin0, pin1)),
             dist: AtomicI16::new(0),
         }
     }
@@ -53,11 +62,12 @@ impl<const C1: usize, const C2: usize> EncoderISR<C1, C2> {
             Ok(Clockwise) => {self.dist.fetch_add(1, Ordering::SeqCst); ()}
             Ok(CounterClockwise) => {self.dist.fetch_sub(1, Ordering::SeqCst); ()}
         }
+        defmt::info!("dist: {}", self.dist.load(Ordering::Relaxed));
     }
 }
 
-pub struct Encoder<const C1: usize, const C2: usize> {
-    isr: &'static EncoderISR<C1, C2>,
+pub struct Encoder {
+    isr: &'static EncoderISR,
     last_spd_update: Option<Instant>,
 }
 

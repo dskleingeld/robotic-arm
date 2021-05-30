@@ -23,11 +23,11 @@ use hinge::motor::{Encoder, interrupts};
 async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) -> ! {
 
     interrupts::enable();
-    let i30 = Input::new(ep.P0_30, Pull::None);
-    let i31 = Input::new(ep.P0_31, Pull::None);
+    // let i30 = Input::new(ep.P0_30, Pull::None);
+    // let i31 = Input::new(ep.P0_31, Pull::None);
 
-    interrupts::set_pin(30, 0);
-    interrupts::set_pin(31, 1);
+    // interrupts::set_pin(30, 0);
+    // interrupts::set_pin(31, 1);
 
     // let mut encoder = Encoder::from(
     //     p0.p0_31.degrade(),
