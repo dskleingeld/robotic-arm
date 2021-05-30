@@ -42,7 +42,7 @@ impl<'a, T: PwmInstance> Driver<'a, T> {
         use core::f64;
         use ieee754::Ieee754;
 
-        let max_duty = (0.7 * self.pwm.max_duty() as f32) as u16;
+        let max_duty = (0.9 * self.pwm.max_duty() as f32) as u16;
         // note 50% duty cycle bad says internet....
         let power: f64 = value.abs();
         let power = power as u16;

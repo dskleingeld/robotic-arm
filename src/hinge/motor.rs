@@ -80,11 +80,10 @@ pub struct Motor<'a, T: PwmInstance> {
     encoder: Encoder,
 }
 
-// 2, 0.5
 impl<'a, T: PwmInstance> Motor<'a, T> {
     const P_GAIN: f64 = 1.7;
-    const I_GAIN: f64 = 0.5;
-    const D_GAIN: f64 = 0.01;
+    const I_GAIN: f64 = 0.6;
+    const D_GAIN: f64 = 0.0;
 
     pub fn from(controls: &'static Controls, encoder: Encoder, driver: Driver<'a, T>) -> Self {
         Self {
@@ -109,7 +108,7 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
 
         let mut changed = self.controls.changed.wait().fuse();
         let encoder = self.encoder.wait().fuse();
-        let mut timeout = Timer::after(Duration::from_millis(10)).fuse();
+        let mut timeout = Timer::after(Duration::from_millis(20)).fuse();
 
         pin_mut!(encoder);
         futures::select_biased! {
