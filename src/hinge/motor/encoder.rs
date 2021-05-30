@@ -85,7 +85,7 @@ impl Encoder {
             Timer::at(next).await;
 
             let distance = self.isr.dist.swap(0, Ordering::Relaxed);
-            if distance > 0 {
+            if distance != 0 {
                 let speed = self.update(distance);
                 return (distance, speed)
             }
@@ -98,7 +98,6 @@ impl Encoder {
         let speed = if let Some(t1) = self.last_spd_update {
             let distance = distance as i32;
             let elapsed = t1.elapsed().as_ticks() as i32;
-            defmt::debug!("elapsed: {}, tps: {}, dist: {}", elapsed, TICKS_PER_SECOND, distance);
             distance * (TICKS_PER_SECOND as i32) / elapsed
         } else {
             0
