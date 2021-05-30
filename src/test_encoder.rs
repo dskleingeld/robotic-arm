@@ -16,29 +16,24 @@ use embassy_nrf::interrupt;
 // pub use nrf52832_hal as hal;
 
 use defmt_setup::*;
-use hinge::motor::{Encoder, interrupts};
+use hinge::motor::{encoder, interrupts};
+use encoder::{Encoder, ISR_A, ISR_B, ISR_C};
 
 
 #[embassy::main]
 async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) -> ! {
 
     interrupts::enable();
-    // let i30 = Input::new(ep.P0_30, Pull::None);
-    // let i31 = Input::new(ep.P0_31, Pull::None);
 
-    // interrupts::set_pin(30, 0);
-    // interrupts::set_pin(31, 1);
+    let mut encoder_a = Encoder::from(&ISR_A);
+    let mut encoder_b = Encoder::from(&ISR_B);
+    let mut encoder_c = Encoder::from(&ISR_C);
 
-    // let mut encoder = Encoder::from(
-    //     p0.p0_31.degrade(),
-    //     p0.p0_30.degrade(),
-    // );
-
-    // let mut pos = 0i16;
-    // loop {
-    //     let (dist, spd) = encoder.wait().await;
-    //     pos += (dist as i16);
-    //     defmt::info!("\rpos: {}, dist: {}, spd: {}", pos, dist, spd);
-    // }
+    let mut pos = 0;
+    loop {
+        let (dist, spd) = encoder_c.wait().await;
+        pos += (dist as i16);
+        defmt::info!("\rpos: {}, dist: {}, spd: {}", pos, dist, spd);
+    }
     pending::<()>().await;
 }

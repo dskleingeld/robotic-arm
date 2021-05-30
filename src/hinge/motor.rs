@@ -7,7 +7,7 @@ use nrf52832_hal::pwm::Instance as PwmInstance;
 use nrf52832_hal::pwm::PwmChannel;
 use pid_lite::Controller as PidController;
 
-mod encoder;
+pub mod encoder;
 mod pwm;
 pub use encoder::{Encoder, interrupts};
 pub use pwm::init as pwm_init;
