@@ -7,12 +7,12 @@ use super::{ISR_A, ISR_B, ISR_C};
 
 #[interrupt]
 unsafe fn GPIOTE() {
-    pub const CHANNEL_COUNT: usize = 8;
     let g = &*pac::GPIOTE::ptr();
 
-    for i in 0..CHANNEL_COUNT {
+    for i in 0..6 {
         let event = g.events_in[i].read().bits();
         if event != 0 {
+            // defmt::debug!("isr: {}", i);
             g.intenclr.write(|w| unsafe { w.bits(1 << i) }); // mark interrupt as handled
 
             // re-enable interrupts
@@ -58,6 +58,7 @@ pub fn enable() {
 }
 
 pub fn set_pin(pin_numb: u8, channel_numb: usize) {
+    defmt::info!("enabling interrupts for pin: {} on channel {}", pin_numb, channel_numb);
    let g = unsafe { &*pac::GPIOTE::ptr() };
 
     g.config[channel_numb].write(|w| { 

@@ -8,12 +8,10 @@
 mod defmt_setup;
 mod hinge;
 
-use core::future::pending;
 use defmt::panic;
 use embassy::executor::Spawner;
 use embassy_nrf::gpio::{Input, Pull};
 use embassy_nrf::interrupt;
-// pub use nrf52832_hal as hal;
 
 use defmt_setup::*;
 use hinge::motor::{encoder, interrupts};
@@ -31,9 +29,8 @@ async fn main(_spawner: Spawner, ep: embassy_nrf::Peripherals) -> ! {
 
     let mut pos = 0;
     loop {
-        let (dist, spd) = encoder_c.wait().await;
+        let (dist, spd) = encoder_a.wait().await;
         pos += (dist as i16);
         defmt::info!("\rpos: {}, dist: {}, spd: {}", pos, dist, spd);
     }
-    pending::<()>().await;
 }

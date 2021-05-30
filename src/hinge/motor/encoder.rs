@@ -13,9 +13,10 @@ pub type Speed = i32;
 pub type Distance = i16;
 
 lazy_static! {
-    pub static ref ISR_A: EncoderISR = unsafe { EncoderISR::from((11,0), (12,1)) };
-    pub static ref ISR_B: EncoderISR = unsafe { EncoderISR::from((15,2), (16,3)) };
-    pub static ref ISR_C: EncoderISR = unsafe { EncoderISR::from((30,4), (31,5)) };
+    // pub static ref ISR_A: EncoderISR = unsafe { EncoderISR::from((31,1), (30,0)) };
+    pub static ref ISR_A: EncoderISR = unsafe { EncoderISR::from((30,0), (29,1)) };
+    pub static ref ISR_B: EncoderISR = unsafe { EncoderISR::from((22,2), (23,3)) };
+    pub static ref ISR_C: EncoderISR = unsafe { EncoderISR::from((11,4), (12,5)) };
 }
 
 type EncoderPin = gpio::Input<'static, AnyPin>;
@@ -62,6 +63,7 @@ impl EncoderISR {
             Ok(Clockwise) => {self.dist.fetch_add(1, Ordering::SeqCst); ()}
             Ok(CounterClockwise) => {self.dist.fetch_sub(1, Ordering::SeqCst); ()}
         }
+        // defmt::info!("{}", self.dist.load(Ordering::Relaxed));
     }
 }
 
