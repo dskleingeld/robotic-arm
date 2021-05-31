@@ -101,8 +101,7 @@ impl<'a, T: PwmInstance> Hinge<'a, T> {
             (speed*10.) as i8
         };
         let speed = sign * speed.abs().min(5);
-        defmt::info!("pid_speed: {}, pos: {}, target: {}", speed, state.relative_pos, self.controls.target());
-        self.controls.motor.set_speed(speed);
+        self.controls.motor.set_pos(speed as i16); // DOES NOT WORK IN THIS BRANCH
     }
 
     pub async fn maintain_forever(&mut self) {

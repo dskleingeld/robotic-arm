@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use core::sync::atomic::{AtomicI8, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicI16, AtomicU8, Ordering};
 use embassy::time::{Duration, Instant, Timer};
 use embassy::util::Signal;
 use nrf52832_hal::pwm::Instance as PwmInstance;
@@ -17,7 +17,7 @@ pub use pwm::init as pwm_init;
 // at static. Does not need to be mutable as atomics can be changed
 // from & ref
 pub struct Controls {
-    target_speed: AtomicI8,
+    target_pos: AtomicI16,
     max_torgue: AtomicU8,
     changed: Signal<()>,
 }
@@ -27,7 +27,7 @@ impl Controls {
     /// to high
     pub const fn default() -> Self {
         Self {
-            target_speed: AtomicI8::new(0),
+            target_pos: AtomicI16::new(0),
             max_torgue: AtomicU8::new(50),
             changed: Signal::new(),
         }
@@ -35,18 +35,18 @@ impl Controls {
 }
 
 impl Controls {
-    pub fn get_speed(&self) -> i8 {
-        self.target_speed.load(Ordering::Relaxed)
+    pub fn get_pos(&self) -> i16 {
+        self.target_pos.load(Ordering::Relaxed)
     }
-    pub fn set_speed(&self, new: i8) {
-        let old = self.target_speed.swap(new, Ordering::Relaxed);
+    pub fn set_pos(&self, new: i16) {
+        let old = self.target_pos.swap(new, Ordering::Relaxed);
         if new != old {
             self.changed.signal(());
         }
     }
     /// change the direction
-    pub fn set_dir(&self, dir: i8) {
-        self.target_speed
+    pub fn set_dir(&self, dir: i16) {
+        self.target_pos
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |s| Some(s * dir))
             .unwrap();
         self.changed.signal(());
@@ -80,9 +80,12 @@ pub struct Motor<'a, T: PwmInstance> {
 }
 
 impl<'a, T: PwmInstance> Motor<'a, T> {
-    const P_GAIN: f64 = 1.7; // was 1.7
-    const I_GAIN: f64 = 0.6; // was 0.6
-    const D_GAIN: f64 = 0.001;
+    // const P_GAIN: f64 = 5.0;
+    // const I_GAIN: f64 = 0.2;
+    // const D_GAIN: f64 = 0.9;
+    const P_GAIN: f64 = 5.0;
+    const I_GAIN: f64 = 0.2;
+    const D_GAIN: f64 = 0.40; //48
 
     pub fn from(controls: &'static Controls, encoder: Encoder, driver: Driver<'a, T>) -> Self {
         Self {
@@ -118,8 +121,8 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
         futures::select_biased! {
             (dist, spd) = encoder => self.state.update(dist, spd),
             () = changed => {
-                let speed = self.controls.get_speed() as f64;
-                self.pid.set_target(speed);
+                let pos = self.controls.get_pos() as f64;
+                self.pid.set_target(pos);
                 return self.state.clone();
             },
             () = timeout => self.state.update(0, 0),
@@ -129,9 +132,10 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
         let duration = core::time::Duration::from_millis(duration);
         self.last_update = Instant::now();
 
-        // defmt::info!("last known speed: {}, pid: {}", self.state.speed, self.pid);
-        let power = self.pid.update_elapsed(self.state.speed as f64, duration);
-        // defmt::info!("pid output: {}", power);
+        let power = self.pid.update_elapsed(self.state.relative_pos as f64, duration);
+        defmt::info!("out: {}, current pos: {}",
+            power,
+            self.state.relative_pos);
 
         // NOTE can be negative
         self.driver.set(power);

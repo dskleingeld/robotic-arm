@@ -28,9 +28,9 @@ static CTRL_2: Controls = Controls::default();
 
 async fn test(controls: &'static Controls) {
     loop {
-        controls.set_speed(-4);
+        controls.set_pos(-10);
         Timer::after(Duration::from_millis(10000)).await;
-        controls.set_speed(4);
+        controls.set_pos(-30);
         Timer::after(Duration::from_millis(10000)).await;
     }
 }
