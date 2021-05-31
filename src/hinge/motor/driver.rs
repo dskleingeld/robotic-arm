@@ -10,7 +10,7 @@ pub enum Direction {
 
 impl From<f64> for Direction {
     fn from(spd: f64) -> Direction {
-        if spd.is_positive() {
+        if spd.is_sign_positive() {
             return Self::ClockWise;
         }
         Self::CounterClockWise
@@ -42,19 +42,19 @@ impl<'a, T: PwmInstance> Driver<'a, T> {
         use core::f64;
         use ieee754::Ieee754;
 
-        let max_duty = (0.9 * self.pwm.max_duty() as f32) as u16;
+        let max_duty = (1.0 * self.pwm.max_duty() as f32) as u16;
         // note 50% duty cycle bad says internet....
         let power: f64 = value.abs();
         let power = power as u16;
         let power = power.min(max_duty); // limit output power
-        defmt::info!("setting power: {}, max: {}", power, max_duty);
+        // defmt::info!("setting power: {}, max: {}", power, max_duty);
         self.pwm.set_duty_off(power);
     }
     
     fn set_dir(&mut self, dir: impl Into<Direction>) {
         use embedded_hal::digital::v2::OutputPin;
         let dir = dir.into();
-        defmt::info!("dir: {}", dir);
+        // defmt::info!("dir: {}", dir);
         match dir {
             Direction::ClockWise => {
                 self.en_2.set_low().unwrap();

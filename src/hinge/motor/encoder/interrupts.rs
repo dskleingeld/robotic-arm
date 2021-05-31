@@ -1,5 +1,3 @@
-use embassy_nrf::gpio::Pin;
-use embassy_nrf::gpio::Input;
 use embassy_nrf::interrupt;
 use nrf52832_hal::pac;
 

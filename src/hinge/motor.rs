@@ -3,9 +3,7 @@
 use core::sync::atomic::{AtomicI8, AtomicU8, Ordering};
 use embassy::time::{Duration, Instant, Timer};
 use embassy::util::Signal;
-use embassy_nrf::gpio;
 use nrf52832_hal::pwm::Instance as PwmInstance;
-use nrf52832_hal::pwm::PwmChannel;
 use pid_lite::Controller as PidController;
 
 pub mod encoder;
@@ -40,9 +38,11 @@ impl Controls {
     pub fn get_speed(&self) -> i8 {
         self.target_speed.load(Ordering::Relaxed)
     }
-    pub fn set_speed(&self, speed: i8) {
-        self.target_speed.store(speed, Ordering::Relaxed);
-        self.changed.signal(());
+    pub fn set_speed(&self, new: i8) {
+        let old = self.target_speed.swap(new, Ordering::Relaxed);
+        if new != old {
+            self.changed.signal(());
+        }
     }
     /// change the direction
     pub fn set_dir(&self, dir: i8) {
@@ -57,9 +57,9 @@ impl Controls {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, defmt::Format)]
 pub struct State {
-    relative_pos: encoder::Distance,
+    pub relative_pos: encoder::Distance,
     speed: encoder::Speed,
 }
 
@@ -67,7 +67,6 @@ impl State {
     pub fn update(&mut self, dist: encoder::Distance, spd: encoder::Speed) {
         self.relative_pos += dist;
         self.speed = spd;
-        defmt::info!("rel_pos: {}", self.relative_pos);
     }
 }
 
@@ -76,14 +75,14 @@ pub struct Motor<'a, T: PwmInstance> {
     last_update: Instant,
     pid: PidController,
     driver: Driver<'a, T>,
-    controls: &'static Controls,
+    pub controls: &'static Controls,
     encoder: Encoder,
 }
 
 impl<'a, T: PwmInstance> Motor<'a, T> {
-    const P_GAIN: f64 = 1.7;
-    const I_GAIN: f64 = 0.6;
-    const D_GAIN: f64 = 0.0;
+    const P_GAIN: f64 = 1.7; // was 1.7
+    const I_GAIN: f64 = 0.6; // was 0.6
+    const D_GAIN: f64 = 0.001;
 
     pub fn from(controls: &'static Controls, encoder: Encoder, driver: Driver<'a, T>) -> Self {
         Self {
@@ -102,6 +101,11 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
         }
     }
 
+    pub async fn maintain2(&mut self) -> State {
+        self.maintain().await;
+        self.maintain().await
+    }
+
     pub async fn maintain(&mut self) -> State {
         use futures::future::FutureExt;
         use futures::pin_mut;
@@ -116,6 +120,7 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
             () = changed => {
                 let speed = self.controls.get_speed() as f64;
                 self.pid.set_target(speed);
+                return self.state.clone();
             },
             () = timeout => self.state.update(0, 0),
         };
@@ -124,9 +129,9 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
         let duration = core::time::Duration::from_millis(duration);
         self.last_update = Instant::now();
 
-        defmt::info!("last known speed: {}, pid: {}", self.state.speed, self.pid);
+        // defmt::info!("last known speed: {}, pid: {}", self.state.speed, self.pid);
         let power = self.pid.update_elapsed(self.state.speed as f64, duration);
-        defmt::info!("pid output: {}", power);
+        // defmt::info!("pid output: {}", power);
 
         // NOTE can be negative
         self.driver.set(power);
