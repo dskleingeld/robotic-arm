@@ -7,6 +7,8 @@
 \usepackage{graphicx} % allow embedded images
   \setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
   \graphicspath{{../figs/}} % set of paths to search for images
+\usepackage{listings}
+\usepackage{listings-rust}
 \usepackage{ragged2e}
 \usepackage{ctable}
 \usepackage{cleveref}
@@ -26,7 +28,34 @@
 \tableofcontents
 
 \section{Introduction}
-Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using real time operating systems that guarentee strict timing between operations. This comes with limitations and complexity. Here I introduce a robot arm controled using cooperative multitasking written using high level software primatives that are easy to reason about.
+Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This introduces limitations and complexity. Complexity which offers many opportunities for unsafe mistakes. Here I try an alternative controlling a robot arm without threads, OS, heap and all but excluding the chance for undefined behaviour. This all while written with easy to read and reason about software primatives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
+
+\section{Async}
+Before I can describe my implementation I need to introduce \textsc{Async} a syntactic language feature that allows for easy constuction of asynchronous non blocking functions. \textit{Asynchronous} programming lets us write concurrent, not parallel, tasks while looking awfully similar to normal blocking pragramming. It is a good alternative to \textit{event-driven} programming which tends to be verbose which data flow hard to follow. All \textsc{Async} systems are build around function that do not return a value but rather a \textit{promise} of a \textit{future} value. We have means of waiting until one or more of these promises are completed. Lets explain this using the example of downloading 2 files:
+
+\begin{lstlisting}[language=rust, style=boxed, tabsize=2]
+async fn get_two_sites_async() {
+	// Create two different "futures" which, when run to 
+	// completion, will asynchronously download the webpages.
+	let future_one = download_async("https://www.foo.com");
+	let future_two = download_async("https://www.bar.com");
+
+	// Run both futures to completion at the same time.
+	let futures_joined = join!(future_one, future_two);
+	// Run them to completion returning their return values
+	let (foo, bar) = futures_joined.await;
+	some_function_using(foo,bar);
+}
+\end{lstlisting}
+
+Notice the \texttt{async} keyword in front of the function definition it means the function will return a promise to complete in the future. The \texttt{join!} statement on line 8 combines the two promises for a future awnser to a single promise for two awnsers. Then in line 10 we 'block' the function until \texttt{futures\_joined} turns into two value. These can then be used in normal and async functions.
+
+The caller of our \texttt{async} \textit{get\_two\_sites\_async} function will need to be an another async function that can await \textit{get\_two\_sites\_async}, or it can be an executor. An executor allows a normal function to await async functions running the whole mechanism.
+
+Lets go through our example again explaining how this mechanism could work, the syntax and workings of async differ a lot here we will look at the language \textit{Rust}. In rust these promises for a future value are called futures. Until the program reaches line 10 no work on downloading the example sites is done. This is not a problem as the results, \textit{foo} and \textit{bar}, are not used before line 11. The runtime will start out working on downloading \texttt{www.foo.com}, probably by sending out a dns request. As soon as the dns request has been send we need to wait for the awnser, we need it to know to which ip to connect to download the site. At this point the runtime will instead of waiting start work on future two where it will run into the same problem. If by now we have recieved an awnser on our dns request for \textit{www.foo.com} the runtime will continue its work on future one. If not the runtime might continue on some other future availible to it that can do work at this point.
+
+
+
 
 %\input{content/intro}
 %\section{Theory}
@@ -37,11 +66,12 @@ Recent years have seen great strides in the field of humanoid robotics. As we ge
 %\input{content/res}
 %\section{Conclusion}
 %\input{content/conclusion}
+% not everything non blocking need sleeps etc
 
 \clearpage
 \appendix
 %\section{Run Instructions}
-\input{content/run_instructions}
+% \input{content/run_instructions}
 %\printbibliography
 
 \end{document}
