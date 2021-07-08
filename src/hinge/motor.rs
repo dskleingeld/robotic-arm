@@ -83,9 +83,9 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
     // const P_GAIN: f64 = 5.0;
     // const I_GAIN: f64 = 0.2;
     // const D_GAIN: f64 = 0.9;
-    const P_GAIN: f64 = 5.0;
+    const P_GAIN: f64 = 2.5;
     const I_GAIN: f64 = 0.2;
-    const D_GAIN: f64 = 0.40; //48
+    const D_GAIN: f64 = 1.50; //48
 
     pub fn from(controls: &'static Controls, encoder: Encoder, driver: Driver<'a, T>) -> Self {
         Self {
@@ -130,12 +130,13 @@ impl<'a, T: PwmInstance> Motor<'a, T> {
 
         let duration = self.last_update.elapsed().as_millis();
         let duration = core::time::Duration::from_millis(duration);
+        defmt::info!("duration: {}", duration.as_millis());
         self.last_update = Instant::now();
 
         let power = self.pid.update_elapsed(self.state.relative_pos as f64, duration);
-        defmt::info!("out: {}, current pos: {}",
-            power,
-            self.state.relative_pos);
+        // defmt::info!("out: {}, current pos: {}",
+        //     power,
+        //     self.state.relative_pos);
 
         // NOTE can be negative
         self.driver.set(power);
