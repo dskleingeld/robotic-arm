@@ -28,10 +28,12 @@
 \tableofcontents
 
 \section{Introduction}
-Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This introduces limitations and complexity. Complexity which offers many opportunities for unsafe mistakes. Here I try an alternative controlling a robot arm without threads, OS, heap and all but excluding the chance for undefined behaviour. This all while written with easy to read and reason about software primatives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
+Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This at the cost of limitations and complexity. This complexity offers many opportunities for unsafe mistakes. Here I try an alternative, controlling a robot arm without threads, OS, heap and all but excluding the chance for undefined behaviour. This while using easy to reason about software primitives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
+
+In the next section I will introduce the new software primitive I use instead of threads to do 'concurrent' work. Then I will describe my implementation before discussing how this new approach performs in the section results. Finally I will conclude if I succeeded building a simple robotic arm this way and wheather this approach merits further study.
 
 \section{Async}
-Before I can describe my implementation I need to introduce \textsc{Async} a syntactic language feature that allows for easy constuction of asynchronous non blocking functions. \textit{Asynchronous} programming lets us write concurrent, not parallel, tasks while looking awfully similar to normal blocking pragramming. It is a good alternative to \textit{event-driven} programming which tends to be verbose which data flow hard to follow. All \textsc{Async} systems are build around function that do not return a value but rather a \textit{promise} of a \textit{future} value. We have means of waiting until one or more of these promises are completed. Lets explain this using the example of downloading 2 files:
+Before I can describe my implementation I need to introduce \textsc{Async} a syntactic language feature that allows for easy constuction of asynchronous non blocking functions. \textit{Asynchronous} programming lets us write concurrent, not parallel, tasks while looking awfully similar to normal blocking pragramming. It is a good alternative to \textit{event-driven} programming which tends to be verbose and hard to follow. All \textsc{Async} systems are build around special function that do not return a value but rather a \textit{promise} of a \textit{future} value. When we need the value we tell the program not to continue untill the promise is fulfilled. Lets lok at the example of downloading 2 files:
 
 \begin{lstlisting}[language=rust, style=boxed, tabsize=2]
 async fn get_two_sites_async() {
@@ -48,14 +50,74 @@ async fn get_two_sites_async() {
 }
 \end{lstlisting}
 
-Notice the \texttt{async} keyword in front of the function definition it means the function will return a promise to complete in the future. The \texttt{join!} statement on line 8 combines the two promises for a future awnser to a single promise for two awnsers. Then in line 10 we 'block' the function until \texttt{futures\_joined} turns into two value. These can then be used in normal and async functions.
+Notice the \texttt{async} keyword in front of the function definition it means the function will return a promise to complete in the future. The \texttt{join!} statement on line 8 combines the two promises for a future awnser to a single promise for two awnsers. In line 10 we await or 'block' the program until \texttt{futures\_joined} turns into two value. Those can then be used in normal and async functions.
 
-The caller of our \texttt{async} \textit{get\_two\_sites\_async} function will need to be an another async function that can await \textit{get\_two\_sites\_async}, or it can be an executor. An executor allows a normal function to await async functions running the whole mechanism.
+The caller of our \texttt{async} \textit{get\_two\_sites\_async} function will need to be an another async function that can await \textit{get\_two\_sites\_async}, or it can be an executor. An executor allows a normal function to await async functions.
 
-Lets go through our example again explaining how this mechanism could work, the syntax and workings of async differ a lot here we will look at the language \textit{Rust}. In rust these promises for a future value are called futures. Until the program reaches line 10 no work on downloading the example sites is done. This is not a problem as the results, \textit{foo} and \textit{bar}, are not used before line 11. The runtime will start out working on downloading \texttt{www.foo.com}, probably by sending out a dns request. As soon as the dns request has been send we need to wait for the awnser, we need it to know to which ip to connect to download the site. At this point the runtime will instead of waiting start work on future two where it will run into the same problem. If by now we have recieved an awnser on our dns request for \textit{www.foo.com} the runtime will continue its work on future one. If not the runtime might continue on some other future availible to it that can do work at this point.
+Lets go through our example again explaining how this mechanism could work. The syntax and workings of async differ a lot here we will look at the language \textit{Rust}. In rust these promises for a future value are called futures. Until the program reaches line 10 no work on downloading the example sites is done. This is not a problem as the results, \textit{foo} and \textit{bar}, are not used before line 11. The runtime will start out working on downloading \texttt{www.foo.com}, probably by sending out a dns request. As soon as the dns request has been send we need to wait for the awnser, we need it to know to which ip to connect to download the site. At this point the runtime will instead of waiting start work on downloading bar where it will run into the same problem. If by now we have recieved an awnser on our dns request for \textit{www.foo.com} the runtime will continue its work on downloading foo. If not the runtime might continue on some other future availible to it that can do work at this point.
 
+\clearpage
+\section{Implementation}
+Here I will discuss, how I used async to get rid of threads and an OS, why and how this was written heapless, how I all but excluding the chance of undefined behaviour and finally the hardware this was ran on.
+% TODO mention double pid loop
 
+\subsection{Threadless concurrency}
+By combining the above described async with an endless loop we can maintain multiple perhipherals. The key trick is the composability of futures using join and a new operator called select. My robot arm consists of three motor arms that need to be maintained, that is they must hold or move to a certain position. Each of the motors has a \texttt{async} \textit{maintain} function that controls the speed of the motor. It looks a little %
+\footnote{I simplified the rust syntax, see the function \texttt{maintain} in \texttt{motor.rs} \href{https://github.com/dskleingeld/robotic-arm/blob/main/src/hinge/motor.rs}{online}} 
+like this:
 
+\begin{minipage}{\linewidth} % do not break 
+\begin{lstlisting}[language=rust, style=boxed, tabsize=2]
+async fn maintain(&mut self) {
+	loop {
+		select! {
+			encoder => self.state.update(dist, spd),
+			changed => {
+				let speed = self.controls_get_speed()
+				self.pid.set_target(speed)
+			},
+			timeout => self.state.update(0,0),
+		}
+	}
+	let power = self.pid.update(self.state.speed)
+	self.driver.set(power)
+}
+\end{lstlisting}
+\end{minipage}
+
+The \texttt{loop} in line 2 means the function will run forever. On line 3 \texttt{select!} is special async function takes some semantics from a match statement\footnote{switch/case statement in C}. The \textit{arms} of the select, here \texttt{encoder}, \texttt{changed} and \texttt{timeout}, are futures. The select statement concurrently awaits the futures. As soon as one of the futures resolves to a value the code after the arrow (=>) of that future will run. No more work will happen on the other futures. That means the code above either:
+\begin{enumerate}
+	\item Updates the state of the motor
+	\item Sets the motors target (pid) target position
+	\item Update the state of the motor to reflect standing still
+\end{enumerate}
+Then using the new state or target position the new power for the motor is calculated and set in lines 12 and 13.
+
+To control multiple motors we simply join on their maintain futures: 
+
+\begin{minipage}{\linewidth} % do not break 
+\begin{lstlisting}[language=rust, style=boxed, tabsize=2]
+async fn main() {
+	let motor_a = ....  // setup boilerplate
+	let motor_b = ....
+	let motor_c = ....
+
+	let motor_a = motor_a.maintain()  // future
+	let motor_b = motor_b.maintain()  // future
+	let motor_c = motor_c.maintain()  // future
+
+	join!(motor_a, motor_b, motor_c)
+}
+\end{lstlisting}
+\end{minipage}
+
+Since a join statement blocks until all its arguments resolve to a value and the maintain futures all have endless loops it never returns, driving the entire program. To do more concurrent tasks simply add them to the join statement. To test the motors I include a test future that switches the motors speed every few seconds sleeping using an async sleep funstion in between.
+
+For this to work non of the functions used in motor maintain may block. They can only 'block' using async. This requires a lot of async building blocks, these are provided by the \textit{Embassy}\cite{embassy} project.
+
+\subsection{Safe and Unsafe}
+
+\subsection{Hardware}
 
 %\input{content/intro}
 %\section{Theory}
@@ -66,13 +128,14 @@ Lets go through our example again explaining how this mechanism could work, the 
 %\input{content/res}
 %\section{Conclusion}
 %\input{content/conclusion}
-% not everything non blocking need sleeps etc
+	% not everything non blocking need sleeps etc
+	% how to do blocking on embedded (can not put on other thread)
 
 \clearpage
 \appendix
 %\section{Run Instructions}
 % \input{content/run_instructions}
-%\printbibliography
+\printbibliography
 
 \end{document}
 
