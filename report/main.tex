@@ -7,6 +7,7 @@
 \usepackage{graphicx} % allow embedded images
   \setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
   \graphicspath{{../figs/}} % set of paths to search for images
+\usepackage{subcaption}
 \usepackage{listings}
 \usepackage{listings-rust}
 \usepackage{ragged2e}
@@ -28,7 +29,7 @@
 \tableofcontents
 
 \section{Introduction}
-Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This at the cost of limitations and complexity. This complexity offers many opportunities for unsafe mistakes. Here I try an alternative, controlling a robot arm without threads, OS, heap and all but excluding the chance for undefined behaviour. This while using easy to reason about software primitives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
+Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This at the cost of limitations and complexity. This complexity offers many opportunities for unsafe mistakes. Here I try an alternative, controlling a robot arm without threads, OS, heap and all but excluding memory bugs. This while using easy to reason about software primitives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
 
 In the next section I will introduce the \textsc{Async} software primitive I use instead of threads to do 'concurrent' work. Then in \cref{sec:impl} I will describe my implementation before discussing how this new approach performs in \cref{sec:results}. Finally I will conclude if I succeeded building a simple robotic arm this way and wheather this approach merits further study.
 
@@ -56,17 +57,13 @@ The caller of our \texttt{async} \textit{get\_two\_sites\_async} function will n
 
 Lets go through our example again explaining how this mechanism could work. The syntax and workings of async differ a lot here we will look at the language \textit{Rust}. In rust these promises for a future value are called futures. Until the program reaches line 10 no work on downloading the example sites is done. This is not a problem as the results, \textit{foo} and \textit{bar}, are not used before line 11. The runtime will start out working on downloading \texttt{www.foo.com}, probably by sending out a dns request. As soon as the dns request has been send we need to wait for the awnser, we need it to know to which ip to connect to download the site. At this point the runtime will instead of waiting start work on downloading bar where it will run into the same problem. If by now we have recieved an awnser on our dns request for \textit{www.foo.com} the runtime will continue its work on downloading foo. If not the runtime might continue on some other future availible to it that can do work at this point.
 
-\clearpage
 \section{Implementation}
 \label{sec:impl}
-Here I will discuss how I used async to get rid of threads and an OS, why and how my implementation was written heapless, how I all but excluding the chance of undefined behaviour and finally the hardware used.
-% TODO mention double pid loop
+Here I will discuss how I used async to get rid of threads and an the need for OS, how I all but excluded the chance of memory bugs and finally I will show the hardware used and why and how my implementation was written heapless. But before we dive into all that how do I actually control the arm. It consists of three motors. These have controlable direction, power and report whenever they have moved. Each motor is controlled using a double pid loop. The inner loop controls velocity using output power. The outer loop controls position using motor target velocity. This is abstracted using object composition: the arm consists of three hinges (objects) each hinge is composed of a motor object. The hinge controls position and the motor object speed.
 
 \subsection{Threadless concurrency}
-By combining the described async with an endless loop we can maintain multiple perhipherals. The key trick is the composability of futures using \textit{join} and a function called \textit{select}. My robot arm consists of three motor that need to be maintained, that is they must hold or move to a certain position. To achieve this each of the motors has a \texttt{async} function \textit{maintain} that controls the speed of the motor by regulating its power. It looks a little %
-\footnote{I simplified the rust syntax, see the function \texttt{maintain} in \texttt{motor.rs} \href{https://github.com/dskleingeld/robotic-arm/blob/main/src/hinge/motor.rs}{online}} 
-like this:
-
+By combining async with an endless loop we can maintain multiple perhipherals. The key to this is the composability of futures using \textit{join} and a function called \textit{select}. Each of the motors has a \texttt{async} function \textit{maintain} that controls the speed of the motor by regulating its power. It looks like\footnote{I simplified the rust syntax, see the function \texttt{maintain} in \texttt{motor.rs} \href{https://github.com/dskleingeld/robotic-arm/blob/main/src/hinge/motor.rs}{online}} this:
+%
 \begin{minipage}{\linewidth} % do not break 
 \begin{lstlisting}[language=rust, style=boxed, tabsize=2]
 async fn maintain(&mut self) {
@@ -85,17 +82,16 @@ async fn maintain(&mut self) {
 }
 \end{lstlisting}
 \end{minipage}
-
-The \texttt{loop} on line 2 makes the function run forever. On line 3 \texttt{select!} is a special async function with similar syntax to match statement\footnote{switch/case statement in C}. The \textit{arms} of the select, here \texttt{encoder}, \texttt{changed} and \texttt{timeout}, are futures. The select function concurrently awaits its futures. As soon as one of the futures resolves to a value the code after the arrow (=>) of that future will run. No more work will happen on the other futures. That means the code above either:
+%
+The \texttt{loop} on line 2 makes the function run forever. On line 3 \texttt{select!} is a special async function with similar syntax to match statement\footnote{switch/case statement in C}. The \textit{arms} of the select, here \texttt{encoder}, \texttt{changed} and \texttt{timeout}, are futures. The select function concurrently awaits its futures. As soon as one of the futures resolves to a value the code after the arrow (=>) of that future will run. No more work will happen on the other futures and the program continues beyond the select function. That means the code above either:
 \begin{enumerate}
 	\item Updates the state of the motor
 	\item Sets the motors target (pid) target position
 	\item Update the state of the motor to reflect standing still
 \end{enumerate}
-Then the new power for the motor is calculated and set in lines 12 and 13.
+Before calculating and setting the new power for the motor in lines 12 and 13.
 
 To control multiple motors simply join on their maintain futures: 
-
 \begin{minipage}{\linewidth} % do not break 
 \begin{lstlisting}[language=rust, style=boxed, tabsize=2]
 async fn main() {
@@ -111,14 +107,48 @@ async fn main() {
 }
 \end{lstlisting}
 \end{minipage}
+%
+Since the join function blocks asynchronously until all its arguments resolve and the maintain futures never resolve\footnote{as they never return a value thanks to their endlessly looping body} the join ends up driving the program forever. To add a tasks simply add it to the join statement. For example to test the motors I include a test future that switches the motors speed every few seconds. It loops over normal synchrounus code to tell the motors to change their speed target and an asynchronous sleep function.
 
-Since the join function blocks asynchronously until all its arguments resolve to a value and the maintain futures never resolve the join ends up driving the entire program. To add a tasks simply add it to the join statement. For example to test the motors I include a test future that switches the motors speed every few seconds. It is composed of normal synchrounus code to tell the motors to change their speed target and an asynchronous sleep function.
-
-Non of the functions used in \textit{motor maintain} may block. They can only 'block' asynchronously using \textit{await}. This requires async building blocks, these are provided by the \textit{Embassy}\cite{embassy} project.
+Non of the functions used in \textit{motor maintain} may block. They can only 'block' asynchronously using \textit{await}. This requires async building blocks specifically for embedded systems, these are provided by the \textit{Embassy}\cite{embassy} project.
 
 \subsection{Safe and Unsafe}
+The implementation is written in Rust: a high performance memory safe language without carbage collection. It is syntactically quite similar to C++ but guarantees, that our program is free from dangeling pointers (the dreaded segfault). It includes the best build system availible making it trivial to lean on the work on others, which I do extensively here. The culture of safetly around the language makes it ideal for a safe robot arm. In practise this means that on any error the program will \textit{panic} allowing\footnote{you will have to write an panic handling function} for controled shutdown of the motors.
 
-\subsection{Hardware}
+To be able to guarentee safety at compile time the languae needs to be very strict, too strict. To be able to interact with hardware we use an unsafe block. It allows us to do things the language deems unsafe such as dereferencing raw pointers, or setting interrupt routines. For my implementation I only had to use unsafe to setup the encoder. As the encoder needs to update its position on external gpio edges it needs to use interrupts. All the other hardware is safely abstracted around by either the embassy project\cite{embassy} or the Hardware Abstraction Layer (\textsc{HAL}). It provides safe\footnote{by having operations that can fail return a Sum type of the error and return value in case of succes. These sum types must be explicitly handled by us, the caller. We can do this by either panicking the program on error or branching to error handling code on error.} standardized access to the hardwares perhipherals such as the adc and gpios.
+
+\subsection{Hardware and Heapless}
+The hardware for this project was limited to what I had available and what the embassy project supported. Eventually I picked the \textit{nrf52832} by nordic semicondutors: a low power system on chip featuring a \textit{64MHz Cortex-M4 32 bit Arm CPU} and 64kB or RAM.The motors used are 11 year old \textit{Lego mindstorm NXT} servo motors, see: \cref{fig:motor}. They feature a 360 ticks per turn optical encoder. The motors are driven by two STMicroelectronics \textit{L298P} dual full-bridge drivers. The arm is constructed out of technical lego pieces as seen in \cref{fig:arm}.
+%
+\begin{figure}
+	\centering
+	\begin{subfigure}[b]{0.5\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{figs/motor}
+		\caption{The mindstorm NXT motor}
+		\label{fig:motor}
+	\end{subfigure}%
+	\begin{subfigure}[b]{0.5\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{example-image-b}
+		\caption{The lego arm constuction}
+		\label{fig:arm}
+	\end{subfigure}
+\end{figure}
+%
+
+The limited amount of ram introduces the risk of heap fragmentation. Imagine a 12kB heap, we first allocate blocks of 4, 5 and then 6 kB before freeing the middle block. Now we have 7kB of free space but can not allocate a block larger then 5Kb, see \cref{fig:heap}. 
+%
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.9\linewidth]{figs/heapfrag}
+	\caption{Heap fragementation illustrated, adapted from: https://medium.com/@ankur\_anand/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed}
+	\label{fig:heap}
+\end{figure}
+%
+With many small and a few large allocations this can happen even with 50\% of the heap still free. Though you can work around this by always allocating the same amount (fixed blocks) I simply chose to only use the stack.
+
+
 
 \section{Results}
 \label{sec:results}
@@ -134,6 +164,7 @@ Non of the functions used in \textit{motor maintain} may block. They can only 'b
 %\input{content/conclusion}
 	% not everything non blocking need sleeps etc
 	% how to do blocking on embedded (can not put on other thread)
+	% how to add force sensing (triple pid)
 
 \clearpage
 \appendix
