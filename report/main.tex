@@ -29,7 +29,7 @@
 \tableofcontents
 
 \section{Introduction}
-Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This at the cost of limitations and complexity. This complexity offers many opportunities for unsafe mistakes. Here I try an alternative, controlling a robot arm without threads, OS, heap and all but excluding memory bugs. This while using easy to reason about software primitives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
+Recent years have seen great strides in the field of humanoid robotics. As we get closer to interactions between robots and machines we will need to guarentee safe operations. For this the movement of the robot needs to be strictly controled. Classicly robots are controlled using software build on \textit{real time operating systems} that guarentee strict timing between operations. This at the cost of limitations and complexity. This complexity offers many opportunities for unsafe mistakes. Here I try an alternative; controlling a robot arm without threads, OS or heap while also preventing nearly all memory bugs. This while using easy to reason about software primitives. The arm itself is very simple, constructed out of lego and limited to planar movement. Control is done by a 64kB microcontroller.
 
 In the next section I will introduce the \textsc{Async} software primitive I use instead of threads to do 'concurrent' work. Then in \cref{sec:impl} I will describe my implementation before discussing how this new approach performs in \cref{sec:results}. Finally I will conclude if I succeeded building a simple robotic arm this way and wheather this approach merits further study.
 
@@ -117,7 +117,7 @@ The implementation is written in Rust: a high performance memory safe language w
 
 To be able to guarentee safety at compile time the languae needs to be very strict, too strict. To be able to interact with hardware we use an unsafe block. It allows us to do things the language deems unsafe such as dereferencing raw pointers, or setting interrupt routines. For my implementation I only had to use unsafe to setup the encoder. As the encoder needs to update its position on external gpio edges it needs to use interrupts. All the other hardware is safely abstracted around by either the embassy project\cite{embassy} or the Hardware Abstraction Layer (\textsc{HAL}). It provides safe\footnote{by having operations that can fail return a Sum type of the error and return value in case of succes. These sum types must be explicitly handled by us, the caller. We can do this by either panicking the program on error or branching to error handling code on error.} standardized access to the hardwares perhipherals such as the adc and gpios.
 
-\subsection{Hardware and Heapless}
+\subsection{Hardware and Heapless} \label{sec:hw}
 The hardware for this project was limited to what I had available and what the embassy project supported. Eventually I picked the \textit{nrf52832} by nordic semicondutors: a low power system on chip featuring a \textit{64MHz Cortex-M4 32 bit Arm CPU} and 64kB or RAM.The motors used are 11 year old \textit{Lego mindstorm NXT} servo motors, see: \cref{fig:motor}. They feature a 360 ticks per turn optical encoder. The motors are driven by two STMicroelectronics \textit{L298P} dual full-bridge drivers. The arm is constructed out of technical lego pieces as seen in \cref{fig:arm}.
 %
 \begin{figure}
@@ -137,39 +137,60 @@ The hardware for this project was limited to what I had available and what the e
 \end{figure}
 %
 
-The limited amount of ram introduces the risk of heap fragmentation. Imagine a 12kB heap, we first allocate blocks of 4, 5 and then 6 kB before freeing the middle block. Now we have 7kB of free space but can not allocate a block larger then 5Kb, see \cref{fig:heap}. 
+The limited amount of ram introduces the risk of heap fragmentation. Imagine a 12kB heap, we first allocate blocks of 4, 5 and then 6 kB before freeing the middle block. Now we have 7kB of free space but can not allocate a block larger then 5Kb, see \cref{fig:heap}. % 
 %
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.9\linewidth]{figs/heapfrag}
-	\caption{Heap fragementation illustrated, adapted from: https://medium.com/@ankur\_anand/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed}
+	\caption{Heap fragementation illustrated, adapted from \href{https://medium.com/@ankur\_anand/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed}{Ankur Anand}}
 	\label{fig:heap}
 \end{figure}
 %
 With many small and a few large allocations this can happen even with 50\% of the heap still free. Though you can work around this by always allocating the same amount (fixed blocks) I simply chose to only use the stack.
 
+\subsection{Issues}
+As async compute on embedded systems is still bleeding edge there where quite a few issues I ran into. 
 
+\begin{enumerate}
+	\item To control the motors I needed pwm support, however the HAL did not support this for my chip due to an error in the formal description of the system on chip. I correct this in this \href{https://github.com/nrf-rs/nrf52832-pac/pull/19}{PR} and further upstream in my fork \href{https://github.com/dskleingeld/nrf-hal}{here}
+	\item The library providing pid control had an issue preventing compilation on heapless systems I fixed in this \href{https://github.com/yoshuawuyts/pid-lite/pull/1}{PR}.
+	\item The encoder needed raw interrupts from the gpio however these where already used by the embassy project to provide an api for async waiting on interrupt changes. I disabled this in my fork \href{https://github.com/dskleingeld/embassy}{here}.
+	\item Pins close to eachother could not be used for \textit{PWM}. To discover this I needed to watch the pin output. I could not get an oscilloscope due to an ongoing pandamic. I theirfore build my own, see \href{https://github.com/dskleingeld/rustyscopes}{git}.
+\end{enumerate}
 
-\section{Results}
+\section{Results and Conclusion}
 \label{sec:results}
+I quantify the performance of the arm by the range of positions it can reach and how fast it moves there. The robot arm is very unstable and takes about 5 seconds to reach a position such as the one in \cref{fig:pos}. This is with one motor. The other motors run freely acting as hinges. To stay stable the \textit{PID} coefficients need to be specifically tuned for each position, rather impractical for such an arm. The \textit{PID} output can only be updated once the encoder gets another tick or when the encoder stays still for 20ms. In practise it runs about every few milliseconds while the arms is moving. As the arm would not be stable with one motor active I did not attempt to control all motors simultaniously.
+%
+\begin{figure}
+	\centering
+	\includegraphics[width=0.8\linewidth]{example-image-a}
+	\caption{The arm holding position}
+	\label{fig:pos}
+\end{figure}
+%
 
-%\input{content/intro}
-%\section{Theory}
-%\input{content/theory}
-%\section{Implementation}
-%\input{content/impl}
-%\section{Results}
-%\input{content/res}
-%\section{Conclusion}
-%\input{content/conclusion}
-	% not everything non blocking need sleeps etc
-	% how to do blocking on embedded (can not put on other thread)
-	% how to add force sensing (triple pid)
+The cause of the instability is unknown. Here are some possible causes: 
+\begin{enumerate}
+	\item The lego is too flexible causing vibrations the \textit{PID} control can not deal with. 
+	\item The PID loop updates to infrequently and can not deal with the discrete increments in speed/position.
+	\item PID coefficients are tuned incorrectly or the implementation is incorrect.
+\end{enumerate}
+%
+I conclude I failed to build a functional robot arm. I do not know why the arm will not move correctly. This does not mean async programming does not show promise. It lead to linear easy to follow and easy to extend code.
+
+\section{Future Work}
+Any future work should focus on diagnosing the problem with the \textit{PID} control. A good approach would be to build a traditional interrupt based \textit{PID} control system for the same hardware. If that system proves stable it should be used as reference to find the issue in the async implementation. 
+
+An intresting improvements that can be added is force sensing/limiting. This works by sensing the current draw of the motor, which for servos is related to their output torgue. It was one of the origional goals of this project cancelled due to software and time limitations. For one there is no nonblocking way to get samples from the \textit{ADC} right now. To add force sensing and limiting to the current architecture simply add another \textit{PID} layer controlling trogue using current. Speed should then control torgue.
+
+Furthermore instead of a single Executor to drive all futures with equal priority one could use multiple at different priorities. This at the cost of reinstroducing some of the complexity of event and interrupt driven systems. This it will reduce the time between an encoder update and a change in pid output.
 
 \clearpage
 \appendix
-%\section{Run Instructions}
-% \input{content/run_instructions}
+\section{Run Instructions}
+To try my implementation you will need the hardware listed in \cref{sec:hw}, a STlink V2 programmer and a linux system. First install the rust development environment\footnote{see: https://www.rust-lang.org/learn/get-started}. Then use the setup.sh script in the project root to setup the needed tools for flashing. Now connect the STlink to the nrf52832. To flash and test the program simply run: \texttt{cargo test ---bin test\_hinge}. This will cause the arms lower motor to move between three different positions.
+
 \printbibliography
 
 \end{document}
